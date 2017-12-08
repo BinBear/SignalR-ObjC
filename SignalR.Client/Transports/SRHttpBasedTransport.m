@@ -25,7 +25,7 @@
 #import "SRHttpBasedTransport.h"
 #import "SRLog.h"
 #import "SRNegotiationResponse.h"
-
+#import "HTAppDotNetAPIClient.h"
 #import "NSObject+SRJSON.h"
 
 @interface SRHttpBasedTransport()
@@ -50,29 +50,19 @@
 - (void)negotiate:(id<SRConnectionInterface>)connection connectionData:(NSString *)connectionData completionHandler:(void (^)(SRNegotiationResponse * response, NSError *error))block {
     
     id parameters = [self connectionParameters:connection connectionData:connectionData];
-    
-    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:[connection.url stringByAppendingString:@"negotiate"] parameters:parameters error:nil];
-    [connection prepareRequest:request]; //TODO: prepareRequest
-    [request setTimeoutInterval:30];
-    
-    AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    [operation setResponseSerializer:[AFJSONResponseSerializer serializer]];
-    //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
-    //operation.credential = self.credential;
-    //operation.securityPolicy = self.securityPolicy;
-    SRLogTransportDebug(@"will negotiate at url: %@", [[request URL] absoluteString]);
-    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        SRLogTransportInfo(@"negotiate was successful %@", responseObject);
+
+    HTAppDotNetAPIClient *manager = [HTAppDotNetAPIClient sharedClient];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 30;
+    [manager GET:[connection.url stringByAppendingString:@"negotiate"] parameters:parameters progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
         if(block) {
             block([[SRNegotiationResponse alloc] initWithDictionary:responseObject], nil);
         }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        SRLogTransportError(@"negotiate failed %@", error);
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
         if(block) {
             block(nil, error);
         }
     }];
-    [operation start];
 }
 
 - (void)start:(id<SRConnectionInterface>)connection connectionData:(NSString *)connectionData completionHandler:(void (^)(id response, NSError *error))block {
@@ -85,28 +75,20 @@
     //TODO: this is a little strange but SignalR Expects the parameters in the queryString and fails if in the body.
     //So we let AFNetworking Generate our URL with proper encoding and then create the POST url which will encode the data in the body.
     NSMutableURLRequest *url = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:[connection.url stringByAppendingString:@"send"] parameters:parameters error:nil];
-    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"POST" URLString:[[url URL] absoluteString] parameters:@{ @"data" : data } error:nil];
-    [connection prepareRequest:request]; //TODO: prepareRequest
-    AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    [operation setResponseSerializer:[AFJSONResponseSerializer serializer]];
-    //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
-    //operation.credential = self.credential;
-    //operation.securityPolicy = self.securityPolicy;
-    SRLogTransportDebug(@"will send at url: %@", [[request URL] absoluteString]);
-    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        SRLogTransportInfo(@"send was successful %@", responseObject);
+    HTAppDotNetAPIClient *manager = [HTAppDotNetAPIClient sharedClient];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    [manager POST:[[url URL] absoluteString] parameters:@{ @"data" : data } progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
         [connection didReceiveData:responseObject];
         if(block) {
             block(responseObject, nil);
         }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        SRLogTransportError(@"send failed %@", error);
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
         [connection didReceiveError:error];
         if (block) {
             block(nil, error);
         }
     }];
-    [operation start];
+    
 }
 
 - (void)completeAbort {
@@ -143,22 +125,13 @@
         id parameters = [self connectionParameters:connection connectionData:connectionData];
         
         NSMutableURLRequest *url = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:[connection.url stringByAppendingString:@"abort"] parameters:parameters error:nil];
-        NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"POST" URLString:[[url URL] absoluteString] parameters:nil error:nil];
-        [connection prepareRequest:request]; //TODO: prepareRequest
-        [request setTimeoutInterval:2];
-        AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-        [operation setResponseSerializer:[AFJSONResponseSerializer serializer]];
-        //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
-        //operation.credential = self.credential;
-        //operation.securityPolicy = self.securityPolicy;
-        SRLogTransportDebug(@"will abort at url: %@", [[request URL] absoluteString]);
-        [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-            SRLogTransportInfo(@"abort was successful %@", responseObject);
-        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-            SRLogTransportError(@"abort failed %@",error);
+        HTAppDotNetAPIClient *manager = [HTAppDotNetAPIClient sharedClient];
+        manager.responseSerializer = [AFJSONResponseSerializer serializer];
+        [manager POST:[[url URL] absoluteString] parameters:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
             [self completeAbort];
         }];
-        [operation start];
     }
 }
 

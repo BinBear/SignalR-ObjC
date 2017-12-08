@@ -31,6 +31,7 @@
 #import "SRServerSentEvent.h"
 #import "SREventSourceRequestSerializer.h"
 #import "SREventSourceResponseSerializer.h"
+#import "HTAppDotNetAPIClient.h"
 
 typedef void (^SRCompletionHandler)(id response, NSError *error);
 
@@ -136,19 +137,14 @@ typedef void (^SRCompletionHandler)(id response, NSError *error);
     
     __weak __typeof(&*self)weakSelf = self;
     __weak __typeof(&*connection)weakConnection = connection;
-    NSMutableURLRequest *request = [[SREventSourceRequestSerializer serializer] requestWithMethod:@"GET" URLString:url parameters:parameters error:nil];
-    [connection prepareRequest:request]; //TODO: prepareRequest
-    [request setTimeoutInterval:240];
-    [request setValue:@"Keep-Alive" forHTTPHeaderField:@"Connection"];
-    //TODO: prepareRequest
     
-    SRLogSSEDebug(@"serverSentEvents will connect at url: %@", [[request URL] absoluteString]);
-    AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    [operation setResponseSerializer:[SREventSourceResponseSerializer serializer]];
-    //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
-    //operation.credential = self.credential;
-    //operation.securityPolicy = self.securityPolicy;
-    _eventSource = [[SREventSourceStreamReader alloc] initWithStream:operation.outputStream];
+//    NSMutableURLRequest *request = [[SREventSourceRequestSerializer serializer] requestWithMethod:@"GET" URLString:url parameters:parameters error:nil];
+//    [connection prepareRequest:request]; //TODO: prepareRequest
+//    [request setTimeoutInterval:240];
+//    [request setValue:@"Keep-Alive" forHTTPHeaderField:@"Connection"];
+//    //TODO: prepareRequest
+    
+    _eventSource = [[SREventSourceStreamReader alloc] initWithStream:[NSOutputStream outputStreamToMemory]];
     _eventSource.opened = ^() {
         __strong __typeof(&*weakConnection)strongConnection = weakConnection;
         SRLogSSEInfo(@"serverSentEvents did open eventSource");
@@ -221,8 +217,53 @@ typedef void (^SRCompletionHandler)(id response, NSError *error);
         }
     };
     [_eventSource start];
-    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        SRLogSSEWarn(@"serverSentEvents did complete");
+    
+//    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+//        SRLogSSEWarn(@"serverSentEvents did complete");
+//        __strong __typeof(&*weakSelf)strongSelf = weakSelf;
+//        __strong __typeof(&*weakConnection)strongConnection = weakConnection;
+//        if (strongSelf.stop) {
+//            [strongSelf completeAbort];
+//        } else if ([strongSelf tryCompleteAbort]) {
+//        } else {
+//            [strongSelf reconnect:strongConnection data:connectionData];
+//        }
+//    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+//        SRLogSSEError(@"serverSentEvents did fail with error %@", error);
+//
+//        //a little tough to read, but failure is mutually exclusive to open, message, or closed above
+//        //also, you may start in the received above and end up in the failure case
+//        //http://cocoadocs.org/docsets/AFNetworking/2.5.4/Classes/AFHTTPRequestOperation.html
+//        //we however do close the eventSource below, which will lead us to the above code
+//        __strong __typeof(&*weakSelf)strongSelf = weakSelf;
+//        if (strongSelf.completionHandler) {//this is equivalent to the !reconnecting onStartFailed from c#
+//            SRLogSSEDebug(@"serverSentEvents did fail while connecting");
+//            [NSObject cancelPreviousPerformRequestsWithTarget:self.connectTimeoutOperation
+//                                                     selector:@selector(start)
+//                                                       object:nil];
+//            self.connectTimeoutOperation = nil;
+//
+//            strongSelf.completionHandler(nil, error);
+//            strongSelf.completionHandler = nil;
+//        } else if (!isReconnecting){//failure should first attempt to reconect
+//            SRLogSSEWarn(@"will reconnect from errors: %@", error);
+//        } else {//failure while reconnecting should error
+//            //special case differs from above
+//            SRLogSSEError(@"error: %@", error);
+//            [operation cancel];//clean up to avoid duplicates
+//            [strongSelf.eventSource close: error];//clean up -> this should end up in eventSource.closed above
+//            return;//bail out early as we've taken care of the below
+//        }
+//        [operation cancel];//clean up to avoid duplicates
+//        [strongSelf.eventSource close];//clean up -> this should end up in eventSource.closed above
+//    }];
+//    [self.serverSentEventsOperationQueue addOperation:operation];
+    
+    HTAppDotNetAPIClient *manager = [HTAppDotNetAPIClient sharedClient];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 240;
+    
+    [manager GET:url parameters:parameters progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
         __strong __typeof(&*weakSelf)strongSelf = weakSelf;
         __strong __typeof(&*weakConnection)strongConnection = weakConnection;
         if (strongSelf.stop) {
@@ -231,13 +272,7 @@ typedef void (^SRCompletionHandler)(id response, NSError *error);
         } else {
             [strongSelf reconnect:strongConnection data:connectionData];
         }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        SRLogSSEError(@"serverSentEvents did fail with error %@", error);
-        
-        //a little tough to read, but failure is mutually exclusive to open, message, or closed above
-        //also, you may start in the received above and end up in the failure case
-        //http://cocoadocs.org/docsets/AFNetworking/2.5.4/Classes/AFHTTPRequestOperation.html
-        //we however do close the eventSource below, which will lead us to the above code
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
         __strong __typeof(&*weakSelf)strongSelf = weakSelf;
         if (strongSelf.completionHandler) {//this is equivalent to the !reconnecting onStartFailed from c#
             SRLogSSEDebug(@"serverSentEvents did fail while connecting");
@@ -253,14 +288,16 @@ typedef void (^SRCompletionHandler)(id response, NSError *error);
         } else {//failure while reconnecting should error
             //special case differs from above
             SRLogSSEError(@"error: %@", error);
-            [operation cancel];//clean up to avoid duplicates
+           
             [strongSelf.eventSource close: error];//clean up -> this should end up in eventSource.closed above
             return;//bail out early as we've taken care of the below
         }
-        [operation cancel];//clean up to avoid duplicates
-        [strongSelf.eventSource close];//clean up -> this should end up in eventSource.closed above
+
+        [strongSelf.eventSource close];
     }];
-    [self.serverSentEventsOperationQueue addOperation:operation];
+    
+    manager.operationQueue.maxConcurrentOperationCount = 1;
+    self.serverSentEventsOperationQueue = manager.operationQueue;
 }
 
 - (void)reconnect:(id <SRConnectionInterface>)connection data:(NSString *)data {

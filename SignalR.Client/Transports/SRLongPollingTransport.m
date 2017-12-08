@@ -26,6 +26,7 @@
 #import "SRExceptionHelper.h"
 #import "SRLog.h"
 #import "SRLongPollingTransport.h"
+#import "HTAppDotNetAPIClient.h"
 
  @interface SRLongPollingTransport()
  
@@ -115,26 +116,100 @@
         parameters = _parameters;
     }
     
-    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:url parameters:parameters error:nil];
-    [connection prepareRequest:request]; //TODO: prepareRequest
-    [request setTimeoutInterval:240];
+//    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] requestWithMethod:@"GET" URLString:url parameters:parameters error:nil];
+//    [connection prepareRequest:request]; //TODO: prepareRequest
+//    [request setTimeoutInterval:240];
+//    
+//    SRLogLPDebug(@"longPolling will connect at url: %@", [[request URL] absoluteString]);
+//    AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
+//    [operation setResponseSerializer:[AFJSONResponseSerializer serializer]];
+//    //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
+//    //operation.credential = self.credential;
+//    //operation.securityPolicy = self.securityPolicy;
+//    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+//        __strong __typeof(&*weakSelf)strongSelf = weakSelf;
+//        __strong __typeof(&*weakConnection)strongConnection = weakConnection;
+//
+//        BOOL shouldReconnect = NO;
+//        BOOL disconnectedReceived = NO;
+//        
+//        SRLogLPInfo(@"longPolling did receive: %@", operation.responseString);
+//        
+//        [strongSelf processResponse:strongConnection response:operation.responseString shouldReconnect:&shouldReconnect disconnected:&disconnectedReceived];
+//        if (block) {
+//            block(nil, nil);
+//        }
+//        
+//        if ([strongSelf isConnectionReconnecting:strongConnection]) {
+//            // If the timeout for the reconnect hasn't fired as yet just fire the
+//            // event here before any incoming messages are processed
+//            SRLogLPWarn(@"reconnecting");
+//            [strongSelf connectionReconnect:strongConnection canReconnect:canReconnect];
+//        }
+//        
+//        if (shouldReconnect) {
+//            // Transition into reconnecting state
+//            SRLogLPDebug(@"longPolling did receive shouldReconnect command from server");
+//            [SRConnection ensureReconnecting:strongConnection];
+//        }
+//        
+//        if (disconnectedReceived) {
+//            SRLogLPDebug(@"longPolling did receive disconnect command from server");
+//            [strongConnection disconnect];
+//        }
+//        
+//        if (![strongSelf tryCompleteAbort]) {
+//            //Abort has not been called so continue polling...
+//            canReconnect = @(YES);
+//            [strongSelf poll:strongConnection connectionData:connectionData completionHandler:nil];
+//        } else {
+//            SRLogLPWarn(@"longPolling has shutdown due to abort");
+//        }
+//    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+//        __strong __typeof(&*weakSelf)strongSelf = weakSelf;
+//        __strong __typeof(&*weakConnection)strongConnection = weakConnection;
+//
+//        SRLogLPError(@"longPolling did fail with error %@", error);
+//        
+//        canReconnect = @(NO);
+//        
+//        // Transition into reconnecting state
+//        [SRConnection ensureReconnecting:strongConnection];
+//        
+//        if (![strongSelf tryCompleteAbort] &&
+//            ![SRExceptionHelper isRequestAborted:error]) {
+//            [strongConnection didReceiveError:error];
+//            
+//            SRLogLPDebug(@"will poll again in %ld seconds",(long)[_errorDelay integerValue]);
+//            
+//            canReconnect = @(YES);
+//            
+//            [[NSBlockOperation blockOperationWithBlock:^{
+//                [strongSelf poll:strongConnection connectionData:connectionData completionHandler:nil];
+//            }] performSelector:@selector(start) withObject:nil afterDelay:[strongSelf.errorDelay integerValue]];
+//            
+//        } else {
+//            [strongSelf completeAbort];
+//            if (block) {
+//                block(nil,error);
+//            }
+//        }
+//    }];
     
-    SRLogLPDebug(@"longPolling will connect at url: %@", [[request URL] absoluteString]);
-    AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    [operation setResponseSerializer:[AFJSONResponseSerializer serializer]];
-    //operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
-    //operation.credential = self.credential;
-    //operation.securityPolicy = self.securityPolicy;
-    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+    
+    HTAppDotNetAPIClient *manager = [HTAppDotNetAPIClient sharedClient];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    manager.requestSerializer.timeoutInterval = 240;
+    [manager GET:url parameters:parameters progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
         __strong __typeof(&*weakSelf)strongSelf = weakSelf;
         __strong __typeof(&*weakConnection)strongConnection = weakConnection;
-
+        
         BOOL shouldReconnect = NO;
         BOOL disconnectedReceived = NO;
         
-        SRLogLPInfo(@"longPolling did receive: %@", operation.responseString);
         
-        [strongSelf processResponse:strongConnection response:operation.responseString shouldReconnect:&shouldReconnect disconnected:&disconnectedReceived];
+        
+        [strongSelf processResponse:strongConnection response:responseObject shouldReconnect:&shouldReconnect disconnected:&disconnectedReceived];
         if (block) {
             block(nil, nil);
         }
@@ -164,10 +239,10 @@
         } else {
             SRLogLPWarn(@"longPolling has shutdown due to abort");
         }
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
         __strong __typeof(&*weakSelf)strongSelf = weakSelf;
         __strong __typeof(&*weakConnection)strongConnection = weakConnection;
-
+        
         SRLogLPError(@"longPolling did fail with error %@", error);
         
         canReconnect = @(NO);
@@ -194,7 +269,9 @@
             }
         }
     }];
-    [self.pollingOperationQueue addOperation:operation];
+    
+    manager.operationQueue.maxConcurrentOperationCount = 1;
+    self.pollingOperationQueue = manager.operationQueue;
 }
 
 - (void)delayConnectionReconnect:(id<SRConnectionInterface>)connection canReconnect:(NSNumber *)canReconnect {
