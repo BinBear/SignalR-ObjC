@@ -212,8 +212,8 @@
     if(response == nil) {
         return;
     }
-
-    if([response isKindOfClass:[NSDictionary class]]) {
+    id result = response;
+    if([result isKindOfClass:[NSDictionary class]]) {
         if (result[@"I"] != nil) {
             [connection didReceiveData:result];
             return;
