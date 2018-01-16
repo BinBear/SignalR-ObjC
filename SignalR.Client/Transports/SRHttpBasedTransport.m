@@ -200,7 +200,7 @@
 }
 
 - (void)processResponse:(id <SRConnectionInterface>)connection
-               response:(NSString *)response
+               response:(id)response
         shouldReconnect:(BOOL *)shouldReconnect
            disconnected:(BOOL *)disconnected {
 
@@ -209,12 +209,11 @@
     *shouldReconnect = NO;
     *disconnected = NO;
     
-    if(response == nil || [response isEqualToString:@""]) {
+    if(response == nil) {
         return;
     }
-    
-    id result = [response SRJSONValue];
-    if([result isKindOfClass:[NSDictionary class]]) {
+
+    if([response isKindOfClass:[NSDictionary class]]) {
         if (result[@"I"] != nil) {
             [connection didReceiveData:result];
             return;

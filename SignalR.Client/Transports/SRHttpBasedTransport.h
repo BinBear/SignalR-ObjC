@@ -27,6 +27,6 @@
 
 - (void)completeAbort;
 - (BOOL)tryCompleteAbort;
-- (void)processResponse:(id <SRConnectionInterface>)connection response:(NSString *)response shouldReconnect:(BOOL *)shouldReconnect disconnected:(BOOL *)disconnected;
+- (void)processResponse:(id <SRConnectionInterface>)connection response:(id)response shouldReconnect:(BOOL *)shouldReconnect disconnected:(BOOL *)disconnected;
 
 @end
