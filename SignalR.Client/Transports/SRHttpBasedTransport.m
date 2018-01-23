@@ -200,19 +200,19 @@
 }
 
 - (void)processResponse:(id <SRConnectionInterface>)connection
-               response:(id)response
+               response:(NSString *)response
         shouldReconnect:(BOOL *)shouldReconnect
            disconnected:(BOOL *)disconnected {
-
+    
     [connection updateLastKeepAlive];
     
     *shouldReconnect = NO;
     *disconnected = NO;
     
-    if(response == nil) {
+    if(response == nil ||![response isKindOfClass:[NSString class]]||[response isEqualToString:@""]) {//修改
         return;
     }
-    id result = response;
+    id result = [response SRJSONValue];
     if([result isKindOfClass:[NSDictionary class]]) {
         if (result[@"I"] != nil) {
             [connection didReceiveData:result];
