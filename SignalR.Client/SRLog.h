@@ -23,7 +23,7 @@
 #if __has_include("DDLog.h")
 #import <CocoaLumberjack/DDLog.h>
 
-static const int ddLogLevel = LOG_LEVEL_VERBOSE;
+static const int ddLogLevel = DDLogLevelOff;
 
 #if defined( LOG_ASYNC_ENABLED )
     #undef LOG_ASYNC_ENABLED
