@@ -72,10 +72,10 @@ typedef void (^SRWebSocketStartBlock)(id response, NSError *error);
 
 - (void)send:(id<SRConnectionInterface>)connection data:(NSString *)data connectionData:(NSString *)connectionData completionHandler:(void (^)(id response, NSError *error))block {
     SRLogWSDebug(@"will send data on websocket %@", data);
-    [_webSocket send:data];
-    
-    if(block) {
-        block(nil,nil);
+    if (_webSocket.readyState == SR_OPEN) {
+        [_webSocket send:data];
+    }else{
+        [self reconnect:[_connectionInfo connection]];
     }
 }
 
