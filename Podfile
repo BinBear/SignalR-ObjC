@@ -17,7 +17,7 @@ target :"SignalR.Client.OSX" do
     use_frameworks!
     platform :osx, '10.9'
     
-    pod 'AFNetworking', '3.2.0'
+    pod 'AFNetworking', '3.2.1'
     pod 'SocketRocket', '0.5.1'
     
     target :"SignalR.Client.OSXTests" do
