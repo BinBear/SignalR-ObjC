@@ -36,6 +36,14 @@
 //#define SRLogDebug(frmt, ...)   LOG_OBJC_MAYBE(LOG_ASYNC_DEBUG,   LOG_LEVEL_DEF, LOG_FLAG_DEBUG,   0, frmt, ##__VA_ARGS__)
 //#define SRLogVerbose(frmt, ...) LOG_OBJC_MAYBE(LOG_ASYNC_VERBOSE, LOG_LEVEL_DEF, LOG_FLAG_VERBOSE, 0, frmt, ##__VA_ARGS__)
 
+#define NSLogDefine(frmt, ...)     do{  } while(0)//NSLog((frmt), ##__VA_ARGS__);
+
+#define SRLogError(frmt, ...)      NSLogDefine(frmt, ##__VA_ARGS__)
+#define SRLogWarn(frmt, ...)       NSLogDefine(frmt, ##__VA_ARGS__)
+#define SRLogInfo(frmt, ...)       NSLogDefine(frmt, ##__VA_ARGS__)
+#define SRLogDebug(frmt, ...)      NSLogDefine(frmt, ##__VA_ARGS__)
+#define SRLogVerbose(frmt, ...)    NSLogDefine(frmt, ##__VA_ARGS__)
+
 #else
 
 #define NSLogDefine(frmt, ...)     do{  } while(0)//NSLog((frmt), ##__VA_ARGS__);
